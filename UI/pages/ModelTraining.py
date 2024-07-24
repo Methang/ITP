@@ -80,10 +80,12 @@ if param1=="YOLOv8":
     learning_rate = st.number_input('Insert a learning rate', min_value=1, value=1, step=1)
 
 if param1=="Fast.AI":
+    st.write("FASTAI Trains and Predicts Right After!")
     epoch = 1
     batch_size = 1
     epoch = st.number_input('Insert epoch', min_value=1, value=1, step=1)
     batch_size = st.number_input('Insert batch size', min_value=1, value=1, step=1)
+    predictimgpath = st.text_input("Enter path of image to use in prediction:")
     #learningRate = st.number_input('Insert a learning rate', min_value=1, value=1, step=1)
 
 target_column=0
@@ -101,102 +103,140 @@ training_method = st.radio("Select what you want to Train the Model with:", ("CP
 if st.button("Start Training"):
     # Trigger training when the button is clicked
     if param1=="Fast.AI":
+        if torch.cuda.is_available() and training_method == 'GPU (will be used if selected and available)':
+            st.write("GPU is available")
+            devicet = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+        else:
+            st.write("GPU is not available")
+            devicet = 'cpu'
+        if not 'notebookDir' in globals():
+            notebookDir = os.getcwd()
+
         td_path = Path(data_path)
-    #/Users/lucasliew/Desktop/SIT/Year 2/Tri 3/ITP/GUI/ITPUserInterface/FASTAItrainingdata/train
-    # Read the CSV file
-    df = pd.read_csv(td_path/'_annotations.csv')
+        #/Users/lucasliew/Desktop/SIT/Year 2/Tri 3/ITP/GUI/ITPUserInterface/FASTAItrainingdata/train
+        # Read the CSV file
+        df = pd.read_csv(td_path/'_annotations.csv')
 
-    def get_label(fn):
-        # Extract the filename from the path
-        filename = fn.name
-        # Find the row in the dataframe where the filename matches
-        row = df[df['filename'] == filename]
-        # Debugging: Print out the filename and row to understand the issue
-        if row.empty:
-            #print(f"No matching entry for {filename}")
-            return "Unknown"  # or handle it in a way suitable for your case
-        # Return the label; assuming there's one label per filename
-        return row['class'].values[0]
+        def get_label(fn):
+            # Extract the filename from the path
+            filename = fn.name
+            # Find the row in the dataframe where the filename matches
+            row = df[df['filename'] == filename]
+            # Debugging: Print out the filename and row to understand the issue
+            if row.empty:
+                #print(f"No matching entry for {filename}")
+                return "Unknown"  # or handle it in a way suitable for your case
+            # Return the label; assuming there's one label per filename
+            return row['class'].values[0]
 
-    # Define the DataBlock
-    dblock = DataBlock(
-        blocks=(ImageBlock, CategoryBlock),
-        get_items=get_image_files,
-        get_y=get_label,  # Use the custom get_y function
-        splitter=RandomSplitter(0.2),
-        item_tfms=Resize(128),
-        batch_tfms=aug_transforms()
-    )
+        # Define the DataBlock
+        dblock = DataBlock(
+            blocks=(ImageBlock, CategoryBlock),
+            get_items=get_image_files,
+            get_y=get_label,  # Use the custom get_y function
+            splitter=RandomSplitter(0.2),
+            item_tfms=Resize(128),
+            batch_tfms=aug_transforms()
+        )
 
-    # Create DataLoaders
-    dls = dblock.dataloaders(td_path, bs=batch_size, device='cpu')
+        # Create DataLoaders
+        dls = dblock.dataloaders(td_path, bs=batch_size, device='cpu')
 
-    # Show a batch of images with their class labels
-    dls.show_batch(max_n=9, figsize=(10, 10))
-
-
-
-    # Define precision and recall as custom metrics
-    precision = Precision(average='macro')
-    recall = Recall(average='macro')
-
-    # Combine all metrics
-    metrics = [accuracy, precision, recall]
-    print("DONE")
-
-    learn = vision_learner(dls, models.resnet18, pretrained=True, metrics=metrics)
-
-    # Make sure the model and data are on the same device
-    learn.dls.device = 'cpu'  # or 'mps' if using Metal Performance Shaders
-    learn.model.to('cpu')     # or 'mps' if using Metal Performance Shaders
-
-    # Find optimal learning rate
-    with st.spinner(text="Loading Optimal Learning Rate"):
-        lr_find_result = learn.lr_find()
-
-    # Extract the valley learning rate
-    valley_lr = lr_find_result.valley
-
-    st.write("Obtained Learning Rate: ", valley_lr)
+        # Show a batch of images with their class labels
+        dls.show_batch(max_n=9, figsize=(10, 10))
 
 
-    with st.spinner(text="Model is Training"):
-        learn.fit_one_cycle(epoch, slice(valley_lr)) # adjust the epoch and learning rate in the arguement of .fit_one_cycle(epoch,learning rate)
 
-   
+        # Define precision and recall as custom metrics
+        precision = Precision(average='macro')
+        recall = Recall(average='macro')
 
+        # Combine all metrics
+        metrics = [accuracy, precision, recall]
+        print("DONE")
 
-    @patch
-    @delegates(subplots)
-    def plot_metrics(self: Recorder, nrows=None, ncols=None, figsize=None, **kwargs):
-        metrics = np.stack(self.values)
-        names = self.metric_names[1:-1]
-        n = len(names) - 1
-        if nrows is None and ncols is None:
-            nrows = int(math.sqrt(n))
-            ncols = int(np.ceil(n / nrows))
-        elif nrows is None: nrows = int(np.ceil(n / ncols))
-        elif ncols is None: ncols = int(np.ceil(n / nrows))
-        figsize = figsize or (ncols * 6, nrows * 4)
-        fig, axs = subplots(nrows, ncols, figsize=figsize, **kwargs)
-        fig.subplots_adjust(hspace=0.5)  # Adjust vertical spacing between subplots
-        axs = [ax if i < n else ax.set_axis_off() for i, ax in enumerate(axs.flatten())][:n]
-        for i, (name, ax) in enumerate(zip(names, [axs[0]] + axs)):
-            ax.plot(metrics[:, i], color='#1f77b4' if i == 0 else '#ff7f0e', label='valid' if i > 0 else 'train')
-            ax.set_title(name if i > 1 else 'losses')
-            ax.set_xlabel('Epoch')
-            ax.set_ylabel('Data Loss' if 'loss' in name else 'Accuracy')
-            ax.legend(loc='best')
-        st.pyplot(fig)
-        
-    # Now call the plot_metrics function
-    learn.recorder.plot_metrics()
+        learn = vision_learner(dls, models.resnet18, pretrained=True, metrics=metrics)
+
+        # Make sure the model and data are on the same device
+        learn.dls.device = 'cpu'  # or 'mps' if using Metal Performance Shaders
+        learn.model.to('cpu')     # or 'mps' if using Metal Performance Shaders
+
+        # Find optimal learning rate
+        with st.spinner(text="Loading Optimal Learning Rate"):
+            lr_find_result = learn.lr_find()
+
+        # Extract the valley learning rate
+        valley_lr = lr_find_result.valley
+
+        st.write("Obtained Learning Rate: ", valley_lr)
 
 
-    # Export the trained model
-    td_path = Path(output_path)
-    learn.export(td_path/'FastAI.pkl')
-    st.write("Training is Successful, Model is Exported to output path, Named FastAI.pkl")
+        with st.spinner(text="Model is Training"):
+            learn.fit_one_cycle(epoch, slice(valley_lr)) # adjust the epoch and learning rate in the arguement of .fit_one_cycle(epoch,learning rate)
+
+    
+
+
+        @patch
+        @delegates(subplots)
+        def plot_metrics(self: Recorder, nrows=None, ncols=None, figsize=None, **kwargs):
+            metrics = np.stack(self.values)
+            names = self.metric_names[1:-1]
+            n = len(names) - 1
+            if nrows is None and ncols is None:
+                nrows = int(math.sqrt(n))
+                ncols = int(np.ceil(n / nrows))
+            elif nrows is None: nrows = int(np.ceil(n / ncols))
+            elif ncols is None: ncols = int(np.ceil(n / nrows))
+            figsize = figsize or (ncols * 6, nrows * 4)
+            fig, axs = subplots(nrows, ncols, figsize=figsize, **kwargs)
+            fig.subplots_adjust(hspace=0.5)  # Adjust vertical spacing between subplots
+            axs = [ax if i < n else ax.set_axis_off() for i, ax in enumerate(axs.flatten())][:n]
+            for i, (name, ax) in enumerate(zip(names, [axs[0]] + axs)):
+                ax.plot(metrics[:, i], color='#1f77b4' if i == 0 else '#ff7f0e', label='valid' if i > 0 else 'train')
+                ax.set_title(name if i > 1 else 'losses')
+                ax.set_xlabel('Epoch')
+                ax.set_ylabel('Data Loss' if 'loss' in name else 'Accuracy')
+                ax.legend(loc='best')
+            st.pyplot(fig)
+            
+        # Now call the plot_metrics function
+        learn.recorder.plot_metrics()
+
+
+        # Export the trained model
+        td_path = Path(output_path)
+        learn.export(td_path/'FastAI.pkl')
+        st.write("Training is Successful, Model is Exported to output path, Named FastAI.pkl")
+        st.write("------------------------------------------------------------------------------")   
+        st.write ("CLASSIFCATION:")
+        modelpath = td_path/'FastAI.pkl'
+
+        # modelpath = st.text_input("Enter path of Exported Model:", key=modelpath)
+        # if modelpath:
+        #     if os.path.exists(modelpath):
+        #         st.write("Valid Model Path!")
+       
+    # if predictimgpath:
+    #     if os.path.exists(predictimgpath):
+    #         st.write("Image found!")
+    #         st.image(predictimgpath, caption=None, width=None, use_column_width=None, clamp=False, channels="RGB", output_format="auto")
+
+
+        # Load the exported model
+        learn_inf = load_learner(modelpath)
+
+        # Path to the new image you want to predict
+        img_path = Path(predictimgpath)
+
+        # Open the image
+        img = PILImage.create(img_path)
+        st.image(img)
+        # Make a prediction
+        pred_class, pred_idx, outputs = learn_inf.predict(img)
+        st.write(f"Predicted class: {pred_class}")
+
 # if st.button("Export trained model"):
 #     # Trigger training when the button is clicked
 #     train_and_evaluate_model(data, target_column, epoch, batch_size)

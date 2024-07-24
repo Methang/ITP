@@ -6,6 +6,11 @@ import os
 import torch
 from groundingdino.util.inference import load_model, load_image, predict, annotate
 import cv2
+from fastai.vision.all import load_learner, PILImage
+from fastai.vision import *
+from fastai.vision.all import *
+from fastai.learner import *
+
 st.set_page_config(
     page_title="Oral Lesion App", page_icon="😏")
 
@@ -32,9 +37,14 @@ img {
 
 
 def main():
-
+    modelpath =''
      # Add radio buttons for selection
-    detection_method = st.radio("Choose detection Model:", ("MobileNet-v2", "YOLOv8", "GroundingDINO"))
+    detection_method = st.radio("Choose detection Model:", ("Fast.AI", "YOLOv8", "GroundingDINO"))
+    if detection_method == "Fast.AI":
+        modelpath = st.text_input("Enter path of Exported Model:", key=modelpath)
+        if modelpath:
+            if os.path.exists(modelpath):
+                st.write("Valid Model Path!")
     # Add radio buttons for selection
     training_method = st.radio("Select what you want to Run the Model with:", ("CPU (Default)", "GPU (will be used if selected and available)"))
 
@@ -49,8 +59,24 @@ def main():
         if os.path.exists(data_path):
             st.write("Image found!")
             st.image(data_path, caption=None, width=None, use_column_width=None, clamp=False, channels="RGB", output_format="auto")
+
             # Proceed with further actions
             if st.button("Run"):
+                if detection_method == "Fast.AI":
+                    # Load the exported model
+                    modelpath2 = Path(modelpath)
+                    learn_inf = load_learner(modelpath2)
+
+                    # Path to the new image you want to predict
+                    img_path = Path(data_path)
+
+                    # Open the image
+                    img = PILImage.create(img_path)
+
+                    # Make a prediction
+                    pred_class, pred_idx, outputs = learn_inf.predict(img)
+                    print(f"Predicted class: {pred_class}")
+
                 if detection_method == "GroundingDINO":
                     print("")
                     #CALL GROUNDING
@@ -82,7 +108,7 @@ def main():
                         text_threshold=TEXT_THRESHOLD
                     )
 
-                    annotated_frame = annotate(image_source=image_source, boxes=boxes, logits=logits, phrases=phrases)
+                    annotate(image_source=image_source, boxes=boxes, logits=logits, phrases=phrases)
                     st.image("testnolesion_1.jpg")
                 print("")
         else:
