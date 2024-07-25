@@ -71,10 +71,10 @@ param1 = st.radio('Models', ['YOLOv8', 'Fast.AI'])
 if param1=="YOLOv8":
     epoch = 1
     batch_size = 1
-    learning_rate = 1
+    learning_rate = 1.0
     epoch = st.number_input('Insert epoch', min_value=1, value=1, step=1)
     batch_size = st.number_input('Insert batch size', min_value=1, value=1, step=1)
-    learning_rate = st.number_input('Insert a learning rate', min_value=1, value=1, step=1)
+    learning_rate = st.number_input('Insert a learning rate', min_value=0.0001, value=0.0001, step=0.0001)
 
 if param1=="Fast.AI":
     st.write("FASTAI Trains and Predicts Right After!")
@@ -233,6 +233,38 @@ if st.button("Start Training"):
         # Make a prediction
         pred_class, pred_idx, outputs = learn_inf.predict(img)
         st.write(f"Predicted class: {pred_class}")
+
+    elif param1 == "YOLOv8":
+        st.write("YOLO")
+        # Ensure output directory exists
+        if not os.path.exists(output_path):
+            os.makedirs(output_path)
+        
+        # Define YOLOv8 training command
+        command = f"yolo task=detect mode=train model=best.pt data={data_path}/data.yaml imgsz=640 epochs={epoch} batch={batch_size} lr0={learning_rate} plots=True"
+        
+        # Print the command to check
+        st.write(f"Running command: {command}")
+
+        # Execute the command
+        try:
+            result = subprocess.run(command, shell=True, check=True, capture_output=True, text=True)
+            st.write("Training complete.")
+            st.write(result.stdout)  # Display training logs
+            st.write("Training logs:", result.stderr)  # Display errors if any
+            
+            # Check if trained model is saved and move to output path
+            trained_model_path = "runs/detect/train/weights/best.pt"  # Default path, adjust if necessary
+            if os.path.exists(trained_model_path):
+                os.makedirs(output_path, exist_ok=True)
+                output_model_path = os.path.join(output_path, 'best_retrained.pt')
+                os.rename(trained_model_path, output_model_path)
+                st.write(f"Model saved to {output_model_path}")
+            else:
+                st.error("Trained model file not found. Ensure training completed successfully.")
+                
+        except subprocess.CalledProcessError as e:
+            st.error(f"Error during YOLOv8 training: {e.stderr}")
 
 # if st.button("Export trained model"):
 #     # Trigger training when the button is clicked
