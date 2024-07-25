@@ -71,7 +71,7 @@ def main():
                     else:
                         device = torch.device("cpu")
                         st.write("Using CPU")
-                    model = load_model("groundingdino/config/tuning.py", "groundingdino_swint_ogc.pth")
+                    model = load_model("../groundingdino/config/tuning.py", "pages/groundingdino_swint_ogc.pth")
                     model = model.to(device)
                     IMAGE_PATH = data_path
                     TEXT_PROMPT = "lesion"
