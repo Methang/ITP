@@ -1,167 +1,19 @@
 import streamlit as st
 import pandas as pd
 from io import StringIO, BytesIO
-from PIL import Image  # Import the Image module from PIL
-import os
-import torch
-from groundingdino.util.inference import load_model, load_image, predict, annotate
-import cv2
-from fastai.vision.all import load_learner, PILImage
-from fastai.vision import *
-from fastai.vision.all import *
-from fastai.learner import *
-
-st.set_page_config(
-    page_title="Oral Lesion App", page_icon="😏")
-
-st.title("Object Detection Page")
-
-try:
-
-    from enum import Enum
-    from io import BytesIO, StringIO
-    from typing import Union
-
-    import pandas as pd
-    import streamlit as st
-except Exception as e:
-    print(e)
-
-STYLE = """
-<style>
-img {
-    max-width: 100%;
-}
-</style>
-"""
-
-
-def main():
-    modelpath =''
-     # Add radio buttons for selection
-    detection_method = st.radio("Choose detection Model:", ("Fast.AI", "YOLOv8", "GroundingDINO"))
-    if detection_method == "Fast.AI":
-        modelpath = st.text_input("Enter path of Exported Model:", key=modelpath)
-        if modelpath:
-            if os.path.exists(modelpath):
-                st.write("Valid Model Path!")
-    # Add radio buttons for selection
-    training_method = st.radio("Select what you want to Run the Model with:", ("CPU (Default)", "GPU (will be used if selected and available)"))
-
-    # Show the selected detection method
-    # st.write("You selected:", detection_method)
-    # st.info(__doc__)
-    # st.markdown(STYLE, unsafe_allow_html=True)
-    # Get file path input from user
-    data_path = st.text_input("Enter path of image:", key="data_path")
-
-    if data_path:
-        if os.path.exists(data_path):
-            st.write("Image found!")
-            st.image(data_path, caption=None, width=None, use_column_width=None, clamp=False, channels="RGB", output_format="auto")
-
-            # Proceed with further actions
-            if st.button("Run"):
-                if detection_method == "Fast.AI":
-                    # Load the exported model
-                    modelpath2 = Path(modelpath)
-                    learn_inf = load_learner(modelpath2)
-
-                    # Path to the new image you want to predict
-                    img_path = Path(data_path)
-
-                    # Open the image
-                    img = PILImage.create(img_path)
-
-                    # Make a prediction
-                    pred_class, pred_idx, outputs = learn_inf.predict(img)
-                    print(f"Predicted class: {pred_class}")
-
-                if detection_method == "GroundingDINO":
-                    print("")
-                    #CALL GROUNDING
-                    # Set device to CPU
-                    if torch.cuda.is_available() and training_method == "GPU (will be used if selected and available)":
-                        device = torch.device('cuda')
-                        st.write("using gpu")
-                    else:
-                        device = torch.device("cpu")
-                        st.write("using cpu")
-                    model = load_model("groundingdino/config/tuning.py", "groundingdino_swint_ogc.pth")
-                    model = model.to(device)
-                    IMAGE_PATH = data_path
-                    TEXT_PROMPT = "lesion"
-
-                    BOX_THRESHOLD = 0.35
-                    TEXT_THRESHOLD = 0.25
-
-                    image_source, image = load_image(IMAGE_PATH)
-
-                    # Move the image to CPU
-                    image = image.to(device)
-
-                    boxes, logits, phrases = predict(
-                        model=model,
-                        image=image,
-                        caption=TEXT_PROMPT,
-                        box_threshold=BOX_THRESHOLD,
-                        text_threshold=TEXT_THRESHOLD
-                    )
-
-                    annotate(image_source=image_source, boxes=boxes, logits=logits, phrases=phrases)
-                    st.image("testnolesion_1.jpg")
-                print("")
-        else:
-            st.error("Invalid file path. Please provide a valid path.")
-
-    # file = st.file_uploader("Upload file", type=["csv", "png", "jpg"])
-    # show_file = st.empty()
-
-    # if not file:
-    #     show_file.info("Please upload a file of type: " +
-    #                    ", ".join(["csv", "png", "jpg"]))
-    #     return
-
-    # content = file.getvalue()
-
-    # if isinstance(file, BytesIO):
-    #     show_file.image(file)
-    #     if st.button("Start Training"):
-    #         print("")
-    # else:
-    #     data = pd.read_csv(file)
-    #     st.dataframe(data.head(10))
-    # file.close()
-
-
-   
-
-main()
-
-import streamlit as st
-import pandas as pd
-from io import StringIO, BytesIO
 from PIL import Image
 import os
 import torch
+from torchvision import transforms, models
 from groundingdino.util.inference import load_model, load_image, predict, annotate
 import cv2
+from fastai.vision.all import load_learner, PILImage
 from ultralytics import YOLO
+from pathlib import Path
 
-st.set_page_config(
-    page_title="Oral Lesion App", page_icon="😏")
+st.set_page_config(page_title="Oral Lesion App", page_icon="oral.png")
 
 st.title("Object Detection Page")
-
-try:
-    from enum import Enum
-    from io import BytesIO, StringIO
-    from typing import Union
-
-    import pandas as pd
-    import streamlit as st
-except Exception as e:
-    print(e)
 
 STYLE = """
 <style>
@@ -171,63 +23,62 @@ img {
 </style>
 """
 
-def main():
+st.markdown(STYLE, unsafe_allow_html=True)
 
+def main():
+    modelpath = ''
+    
     # Add radio buttons for selection
-    detection_method = st.radio("Choose detection Model:", ("MobileNet-v2", "YOLOv8", "GroundingDINO"))
-    # Add radio buttons for selection
+    detection_method = st.radio("Choose detection Model:", ("Fast.AI", "YOLOv8", "GroundingDINO"))
+    
+    if detection_method == "Fast.AI":
+        modelpath = st.text_input("Enter path of Exported Model:", key="modelpath")
+        model_exists = modelpath and os.path.exists(modelpath)
+        if model_exists:
+            st.write("Valid Model Path!")
+        else:
+            st.write("Please enter a valid model path.")
+    
     training_method = st.radio("Select what you want to Run the Model with:", ("CPU (Default)", "GPU (will be used if selected and available)"))
 
-    # Get file path input from user
     data_path = st.text_input("Enter path of image:", key="data_path")
 
-    if data_path:
-        if os.path.exists(data_path):
+    # Button to run model
+    if st.button("Run"):
+        if data_path and os.path.exists(data_path):
             st.write("Image found!")
             st.image(data_path, caption=None, width=None, use_column_width=None, clamp=False, channels="RGB", output_format="auto")
-            # Proceed with further actions
-            if st.button("Run"):
-              
-                if detection_method == "YOLOv8":
-                    # Set device to CPU or GPU
-                    if torch.cuda.is_available() and training_method == "GPU (will be used if selected and available)":
-                        device = torch.device('cuda')
-                        st.write("Using GPU")
-                    else:
-                        device = torch.device("cpu")
-                        st.write("Using CPU")
-                    
-                    model = YOLO('best.pt')  # Load the trained YOLOv8 model
-                    results = model(data_path)  # Perform inference
-                    annotated_img = results[0].plot()  # Annotate image with detections
-                   
-                    st.image(annotated_img, caption='Detected Image')  # Display the annotated image
-                
-                elif detection_method == "GroundingDINO":
-                    
-                    if torch.cuda.is_available() and training_method == "GPU (will be used if selected and available)":
-                        device = torch.device('cuda')
-                        st.write("Using GPU")
-                    else:
-                        device = torch.device("cpu")
-                        st.write("Using CPU")
-                    model = load_model("groundingdino/config/tuning.py", "groundingdino_swint_ogc.pth")
-                    model = model.to(device)
-                    IMAGE_PATH = data_path
-                    TEXT_PROMPT = "lesion"
-                    BOX_THRESHOLD = 0.35
-                    TEXT_THRESHOLD = 0.25
-                    image_source, image = load_image(IMAGE_PATH)
-                    image = image.to(device)
-                    boxes, logits, phrases = predict(
-                        model=model,
-                        image=image,
-                        caption=TEXT_PROMPT,
-                        box_threshold=BOX_THRESHOLD,
-                        text_threshold=TEXT_THRESHOLD
-                    )
-                    annotated_frame = annotate(image_source=image_source, boxes=boxes, logits=logits, phrases=phrases)
-                    st.image(annotated_frame)
+            
+            if detection_method == "Fast.AI" and model_exists:
+                modelpath2 = Path(modelpath)
+                learn_inf = load_learner(modelpath2)
+                img_path = Path(data_path)
+                img = PILImage.create(img_path)
+                pred_class, pred_idx, outputs = learn_inf.predict(img)
+                st.write(f"Predicted class: {pred_class}")
+            
+            elif detection_method == "YOLOv8":
+                device = torch.device('cuda' if torch.cuda.is_available() and training_method == "GPU (will be used if selected and available)" else 'cpu')
+                st.write("Using GPU" if device.type == 'cuda' else "Using CPU")
+                model = YOLO('best.pt')
+                results = model(data_path)
+                annotated_img = results[0].plot()
+                st.image(annotated_img, caption='Detected Image')
+            
+            elif detection_method == "GroundingDINO":
+                device = torch.device('cuda' if torch.cuda.is_available() and training_method == "GPU (will be used if selected and available)" else 'cpu')
+                st.write("Using GPU" if device.type == 'cuda' else "Using CPU")
+                model = load_model("groundingdino/config/tuning.py", "groundingdino_swint_ogc.pth")
+                model = model.to(device)
+                IMAGE_PATH = data_path
+                TEXT_PROMPT = "lesion"
+                BOX_THRESHOLD = 0.35
+                TEXT_THRESHOLD = 0.25
+                image_source, image = load_image(IMAGE_PATH)
+                image = image.to(device)
+                boxes, logits, phrases = predict(model=model, image=image, caption=TEXT_PROMPT, box_threshold=BOX_THRESHOLD, text_threshold=TEXT_THRESHOLD)
+                annotated_frame = annotate(image_source=image_source, boxes=boxes, logits=logits, phrases=phrases)
+                st.image(annotated_frame)
         else:
             st.error("Invalid file path. Please provide a valid path.")
 

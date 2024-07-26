@@ -10,9 +10,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import subplots
 import torch
+import torchvision
+from torchvision import transforms, models
 import math
 import subprocess  # For executing YOLO commands
-
+st.set_page_config(page_title="Oral Lesion App", page_icon="oral.png", )
 os.environ['OMP_NUM_THREADS'] = '1'
 os.environ['MKL_NUM_THREADS'] = '1'
 
@@ -36,8 +38,20 @@ def train_and_evaluate_model(data, target_column, param1, param2):
 
 
 # Model Parameters on the main page
-st.header('Model Training')
+import streamlit as st
 
+st.header('Model Training')
+st.write("### Instructions:")
+st.write("""
+    <div style="border: 1px solid black; padding: 10px; border-radius: 5px;">
+        <p><strong>Fastai reads _annotations.csv</strong></p>
+        <p>Please ensure your folder includes <code>_annotations.csv</code>.</p>
+        <p>Path: <code>[your-path]/train</code></p>
+        <p><strong>Yolo reads data.yaml</strong></p>
+        <p>Please ensure your folder includes <code>data.yaml</code>.</p>
+        <p>Path: <code>[your-path]/data.yaml</code></p>
+    </div>
+    """, unsafe_allow_html=True)
 
 # Get file path input from user
 data_path = st.text_input("Enter data file path:", key="data_path")
@@ -113,6 +127,7 @@ if st.button("Start Training"):
         td_path = Path(data_path)
         #/Users/lucasliew/Desktop/SIT/Year 2/Tri 3/ITP/GUI/ITPUserInterface/FASTAItrainingdata/train
         # Read the CSV file
+
         df = pd.read_csv(td_path/'_annotations.csv')
 
         def get_label(fn):
@@ -251,18 +266,9 @@ if st.button("Start Training"):
             result = subprocess.run(command, shell=True, check=True, capture_output=True, text=True)
             st.write("Training complete.")
             st.write(result.stdout)  # Display training logs
-            st.write("Training logs:", result.stderr)  # Display errors if any
-            
-            # Check if trained model is saved and move to output path
-            trained_model_path = "runs/detect/train/weights/best.pt"  # Default path, adjust if necessary
-            if os.path.exists(trained_model_path):
-                os.makedirs(output_path, exist_ok=True)
-                output_model_path = os.path.join(output_path, 'best_retrained.pt')
-                os.rename(trained_model_path, output_model_path)
-                st.write(f"Model saved to {output_model_path}")
-            else:
-                st.error("Trained model file not found. Ensure training completed successfully.")
-                
+            st.write("Training logs:", result.stderr)  # Display errors if any            
+            st.write(f"Model saved to folder: runs")
+   
         except subprocess.CalledProcessError as e:
             st.error(f"Error during YOLOv8 training: {e.stderr}")
 
